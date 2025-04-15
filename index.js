@@ -1,54 +1,57 @@
+
 const express = require('express');
-const fetch = require('node-fetch');
-const cors = require('cors');
+const bodyParser = require('body-parser');
+const sqlite3 = require('sqlite3').verbose();
 const app = express();
-
 const PORT = process.env.PORT || 3000;
-const API_URL = 'http://caospay.shop:5555';
 
-app.use(cors());
-app.use(express.json());
+app.use(bodyParser.json());
+app.use(express.static(__dirname));
 
-// Cria pagamento via proxy
-app.get('/create_payment', async (req, res) => {
-  const { user_id, valor } = req.query;
+const db = new sqlite3.Database('./pagamentos.db');
 
-  if (!user_id || !valor) {
-    return res.status(400).json({ error: 'Parâmetros ausentes.' });
-  }
-
-  try {
-    const resposta = await fetch(`${API_URL}/create_payment?user_id=${user_id}&valor=${valor}`);
-    const dados = await resposta.json();
-    res.json(dados);
-  } catch (err) {
-    console.error('Erro ao criar pagamento:', err);
-    res.status(500).json({ error: 'Erro ao criar pagamento via proxy.' });
-  }
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS pagamentos (
+    id TEXT PRIMARY KEY,
+    valor REAL,
+    status TEXT,
+    data_pagamento TEXT,
+    usuario TEXT
+  )`);
 });
 
-// Verifica pagamento via proxy
-app.get('/check_payment', async (req, res) => {
-  const { user_id, payment_id } = req.query;
+app.post('/pushinpay/webhook', (req, res) => {
+  const { id, status, value, created_at } = req.body;
+  const usuario = req.query.usuario || 'desconhecido';
 
-  if (!user_id || !payment_id) {
-    return res.status(400).json({ error: 'Parâmetros ausentes.' });
+  if (status === 'paid') {
+    const valor = value / 100;
+    const data = created_at || new Date().toISOString();
+
+    const stmt = db.prepare('INSERT OR IGNORE INTO pagamentos (id, valor, status, data_pagamento, usuario) VALUES (?, ?, ?, ?, ?)');
+    stmt.run(id, valor, status, data, usuario, (err) => {
+      if (err) {
+        console.error("Erro ao salvar no banco:", err.message);
+      } else {
+        console.log("Pagamento salvo:", id, usuario);
+      }
+    });
+    stmt.finalize();
   }
 
-  try {
-    const resposta = await fetch(`${API_URL}/check_payment?user_id=${user_id}&payment_id=${payment_id}`);
-    const dados = await resposta.json();
-    res.json(dados);
-  } catch (err) {
-    console.error('Erro ao verificar pagamento:', err);
-    res.status(500).json({ error: 'Erro ao verificar pagamento via proxy.' });
-  }
+  res.sendStatus(200);
 });
 
-app.get('/', (req, res) => {
-  res.send('🟢 Proxy CaosPay está online. Use /create_payment e /check_payment');
+app.get('/pagamentos', (req, res) => {
+  db.all('SELECT * FROM pagamentos ORDER BY data_pagamento DESC', (err, rows) => {
+    if (err) {
+      console.error("Erro ao consultar o banco:", err.message);
+      return res.status(500).send("Erro interno");
+    }
+    res.json(rows);
+  });
 });
 
 app.listen(PORT, () => {
-  console.log(`Proxy rodando na porta ${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });

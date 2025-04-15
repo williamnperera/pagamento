@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin - Pagamentos Confirmados</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      padding: 30px;
+      text-align: center;
+    }
+    table {
+      margin: 20px auto;
+      border-collapse: collapse;
+      width: 90%;
+      max-width: 800px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
+    th {
+      background: #1e88e5;
+      color: white;
+    }
+    input[type="password"], button {
+      padding: 10px;
+      margin: 10px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Painel de Pagamentos</h1>
+
+  <div id="login">
+    <p>Digite a senha para acessar:</p>
+    <input type="password" id="senha" placeholder="Senha de acesso" />
+    <button onclick="verificarSenha()">Entrar</button>
+    <p id="erro" style="color:red;"></p>
+  </div>
+
+  <div id="painel" style="display:none;">
+    <h2>Pagamentos Confirmados</h2>
+    <table id="tabela">
+      <thead>
+        <tr><th>Usuário</th><th>ID</th><th>Valor (R$)</th><th>Status</th><th>Data</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    function verificarSenha() {
+      const senha = document.getElementById("senha").value;
+      if (senha === "adminhera") {
+        document.getElementById("login").style.display = "none";
+        document.getElementById("painel").style.display = "block";
+        carregarPagamentos();
+      } else {
+        document.getElementById("erro").innerText = "Senha incorreta!";
+      }
+    }
+
+    async function carregarPagamentos() {
+      const res = await fetch("/pagamentos");
+      const dados = await res.json();
+      const corpo = document.querySelector("#tabela tbody");
+      corpo.innerHTML = "";
+      dados.forEach(p => {
+        const linha = `<tr>
+          <td>${p.usuario || "?"}</td><td>${p.id}</td>
+          <td>${p.valor.toFixed(2)}</td>
+          <td>${p.status}</td>
+          <td>${new Date(p.data_pagamento).toLocaleString()}</td>
+        </tr>`;
+        corpo.innerHTML += linha;
+      });
+    }
+  </script>
+</body>
+</html>
